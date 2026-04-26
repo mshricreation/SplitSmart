@@ -19,8 +19,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.splitsmart.app.ui.theme.NegativeRed
+import com.splitsmart.app.ui.theme.PositiveGreen
 import com.splitsmart.app.data.model.Group
 import com.splitsmart.app.viewmodel.GroupListViewModel
+import kotlin.math.abs
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -77,32 +80,79 @@ fun HomeScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            when {
-                uiState.isLoading -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
-                uiState.groups.isEmpty() -> {
-                    EmptyGroupsPlaceholder(modifier = Modifier.align(Alignment.Center))
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(uiState.groups, key = { it.id }) { group ->
-                            GroupCard(group = group, onClick = { onGroupClick(group.id) })
+            // ── Global Balance Summary ──────────────────────────────────────
+            if (!uiState.isLoading && uiState.groups.isNotEmpty()) {
+                GlobalBalanceCard(totalBalance = uiState.totalBalance)
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                when {
+                    uiState.isLoading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
+                    uiState.groups.isEmpty() -> {
+                        EmptyGroupsPlaceholder(modifier = Modifier.align(Alignment.Center))
+                    }
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(uiState.groups, key = { it.id }) { group ->
+                                GroupCard(group = group, onClick = { onGroupClick(group.id) })
+                            }
+                            // Bottom padding so FAB doesn't overlap last item
+                            item { Spacer(Modifier.height(80.dp)) }
                         }
-                        // Bottom padding so FAB doesn't overlap last item
-                        item { Spacer(Modifier.height(80.dp)) }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun GlobalBalanceCard(totalBalance: Double) {
+    val color = when {
+        totalBalance > 0.005 -> PositiveGreen
+        totalBalance < -0.005 -> NegativeRed
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    
+    val message = when {
+        totalBalance > 0.005 -> "You are owed total"
+        totalBalance < -0.005 -> "You owe total"
+        else -> "You are all settled up"
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "₹${String.format("%.2f", abs(totalBalance))}",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = color
+            )
         }
     }
 }

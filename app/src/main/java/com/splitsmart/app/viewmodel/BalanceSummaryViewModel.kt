@@ -20,6 +20,8 @@ import javax.inject.Inject
 data class BalanceSummaryUiState(
     val balances: List<UserBalance> = emptyList(),
     val suggestedTransactions: List<Transaction> = emptyList(),
+    val directTransactions: List<Transaction> = emptyList(),
+    val isSimplified: Boolean = true,
     val userNameMap: Map<String, String> = emptyMap(),
     val isLoading: Boolean = true,
     val error: String? = null
@@ -67,10 +69,14 @@ class BalanceSummaryViewModel @Inject constructor(
                     // Run smart settlement to get the minimised transaction list
                     val transactions = SmartSettlementAlgorithm.minimiseTransactions(balances)
 
+                    // Calculate direct transactions (unsimplified)
+                    val directTxns = calculateDirectTransactions(expenses, participants, settlements)
+
                     _uiState.update {
                         it.copy(
                             balances = balances,
                             suggestedTransactions = transactions,
+                            directTransactions = directTxns,
                             userNameMap = nameMap,
                             isLoading = false
                         )
@@ -80,6 +86,40 @@ class BalanceSummaryViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun toggleSimplify() {
+        _uiState.update { it.copy(isSimplified = !it.isSimplified) }
+    }
+
+    private fun calculateDirectTransactions(
+        expenses: List<com.splitsmart.app.data.model.Expense>,
+        participants: List<com.splitsmart.app.data.model.ExpenseParticipant>,
+        settlements: List<com.splitsmart.app.data.model.Settlement>
+    ): List<Transaction> {
+        val debtMap = mutableMapOf<Pair<String, String>, Double>() // (From, To) -> Amount
+
+        val expenseMap = expenses.associateBy { it.id }
+        
+        // 1. Add debts from expenses
+        participants.forEach { p ->
+            val expense = expenseMap[p.expenseId] ?: return@forEach
+            if (p.userId != expense.paidById) {
+                val pair = p.userId to expense.paidById
+                debtMap[pair] = (debtMap[pair] ?: 0.0) + p.shareAmount
+            }
+        }
+
+        // 2. Subtract settlements
+        settlements.forEach { s ->
+            val pair = s.fromUserId to s.toUserId
+            debtMap[pair] = (debtMap[pair] ?: 0.0) - s.amount
+        }
+
+        // 3. Convert to list and clean up
+        return debtMap.map { (pair, amount) ->
+            Transaction(from = pair.first, to = pair.second, amount = amount)
+        }.filter { it.amount > 0.01 }
     }
 
     fun clearError() = _uiState.update { it.copy(error = null) }

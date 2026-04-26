@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -103,19 +104,37 @@ fun BalanceSummaryScreen(
             // ── Smart Settlement section ─────────────────────────────────────
             item {
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    "Smart Settlement",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Minimum transactions to settle all debts",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            if (uiState.isSimplified) "Smart Settlement" else "Direct Debts",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            if (uiState.isSimplified) "Minimum transactions to settle all" else "Exact debts between members",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Simplify", style = MaterialTheme.typography.labelMedium)
+                        Switch(
+                            checked = uiState.isSimplified,
+                            onCheckedChange = { viewModel.toggleSimplify() },
+                            modifier = Modifier.scale(0.8f)
+                        )
+                    }
+                }
             }
 
-            if (uiState.suggestedTransactions.isEmpty()) {
+            val displayTransactions = if (uiState.isSimplified) uiState.suggestedTransactions else uiState.directTransactions
+
+            if (displayTransactions.isEmpty()) {
                 item {
                     Card(
                         shape = RoundedCornerShape(16.dp),
@@ -141,7 +160,7 @@ fun BalanceSummaryScreen(
                     }
                 }
             } else {
-                items(uiState.suggestedTransactions, key = { "${it.from}-${it.to}" }) { txn ->
+                items(displayTransactions, key = { "${it.from}-${it.to}" }) { txn ->
                     SmartTransactionCard(
                         transaction = txn,
                         nameMap = uiState.userNameMap,
